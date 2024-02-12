@@ -1,10 +1,11 @@
 import sys
 import numpy as np
 import cv2
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QCheckBox, QLineEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QCheckBox, QLineEdit, QPushButton, QComboBox
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import glob
+import datetime
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -14,6 +15,9 @@ class ApplicationWindow(QMainWindow):
         self.image = cv2.imread('images/capture0.jpg')
         # Charger un array d'image à partir du dossier Images
         self.images = [cv2.imread(file) for file in glob.glob('images/*.jpg')]
+        # Initialiser la caméra
+        self.cap = cv2.VideoCapture('http://10.167.50.3/webcam/?action=stream')
+
         print(self.images.__len__())
 
         if self.images is None:
@@ -65,6 +69,14 @@ class ApplicationWindow(QMainWindow):
         self.canvas = FigureCanvas(Figure(figsize=(5, 4)))
         layout.addWidget(self.canvas)
 
+        # Afficher un selecteur entre vidéo direct et image statique
+        self.comboBox = QComboBox(self)
+        self.comboBox.addItem("Image statique")
+        self.comboBox.addItem("Vidéo direct")
+        self.comboBox.currentTextChanged.connect(self.sourceSelected)
+        layout.addWidget(self.comboBox)
+
+
         # Afficher des flèches pour passer d'une image à l'autre
         self.current_image_index = 0
         self.pushButtonPrevious = QPushButton("Précédent", self)
@@ -74,8 +86,8 @@ class ApplicationWindow(QMainWindow):
         self.pushButtonNext.clicked.connect(self.nextImage)
         layout.addWidget(self.pushButtonNext)
 
-        # Créer deux axes dans le canevas : un pour l'image et un pour l'histogramme
-        self.ax1, self.ax2 = self.canvas.figure.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
+        # Créer deux axes horizontal dans le canevas : un pour l'image et un pour l'histogramme horizontal
+        self.ax1, self.ax2 = self.canvas.figure.subplots(1, 2, gridspec_kw={'width_ratios': [3, 1]})
 
         self.ax1.imshow(self.image, cmap='gray')  # Afficher l'image en niveaux de gris par défaut
         self.ax1.axis('on')  # Cacher les axes pour l'image
@@ -119,6 +131,54 @@ class ApplicationWindow(QMainWindow):
         self.checkBoxCollage = QCheckBox("Selection de la zone de collage", self)
         self.checkBoxCollage.stateChanged.connect(self.updateImage)
         layout.addWidget(self.checkBoxCollage)
+
+        # Ajouter un bouton valider pour le bras robot
+        self.pushButtonValider = QPushButton("Valider", self)
+        self.pushButtonValider.clicked.connect(self.valider)
+        layout.addWidget(self.pushButtonValider)
+
+        # Ajout un bouton rebus pour le bras robot
+        self.pushButtonRebus = QPushButton("Rebus", self)
+        self.pushButtonRebus.clicked.connect(self.rebus)
+        layout.addWidget(self.pushButtonRebus)
+
+        # Ajout d'un bouton quitter pour fermer l'application
+        self.pushButtonQuit = QPushButton("Quitter", self)
+        self.pushButtonQuit.clicked.connect(self.close)
+        layout.addWidget(self.pushButtonQuit)
+
+    def valider(self):
+        print("Valider")
+
+    def rebus(self):
+        print("Rebus")
+
+    def sourceSelected(self, text):
+        """Afficher l'image statique ou la vidéo en direct depuis une ip en fonction de l'option sélectionnée."""
+        if text == "Image statique":
+            # release la caméra si elle est ouverte
+            if self.cap is not None:
+                self.cap.release()
+            self.image = self.images[self.current_image_index]
+            self.updateImage()
+            print("Image statique")
+        elif text == "Vidéo direct":
+            # Vérifier si la caméra est ouverte
+            if not self.cap.isOpened():
+                print("Erreur lors de l'ouverture de la caméra.")
+                # Rebasculer sur l'image statique
+                self.comboBox.setCurrentIndex(0)
+                return
+            while True:
+                # Lire l'image depuis la caméra
+                ret, frame = self.cap.read()
+                if ret:
+                    # remplacer l'image par la nouvelle image
+                    self.image = frame
+                    self.updateImage()
+                # Quitter la boucle si la touche 'q' est enfoncée
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
 
 
     def updateImage(self):
