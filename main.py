@@ -6,6 +6,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import glob
 import datetime
+import time
+import socket
+
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -18,6 +21,11 @@ class ApplicationWindow(QMainWindow):
         # Initialiser la caméra
         self.cap = cv2.VideoCapture('http://10.167.50.3/webcam/?action=stream')
 
+        # Définir l'IP du UR3E
+        self.URP_IP = "192.168.1.1"
+        self.URP_PORT = 30002
+
+
         print(self.images.__len__())
 
         if self.images is None:
@@ -25,6 +33,23 @@ class ApplicationWindow(QMainWindow):
             sys.exit()
 
         self.initUI()
+
+    def connect_to_robot(self):
+        """Connexion au bras robot."""
+        try:
+            self.robot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.robot.connect((self.URP_IP, self.URP_PORT))
+            print("Connexion au bras robot établie.")
+        except:
+            print("Erreur lors de la connexion au bras robot.")
+
+    def send_command(self, command):
+        """Envoyer une commande au bras robot."""
+        try:
+            self.robot.send(command.encode('utf-8'))
+            print("Commande envoyée au bras robot.")
+        except:
+            print("Erreur lors de l'envoi de la commande.")
 
     # Fonction pour le calcul de la distance minimale entre deux contours
     def find_min_distance(self, contours1, contours2):
@@ -148,9 +173,13 @@ class ApplicationWindow(QMainWindow):
         layout.addWidget(self.pushButtonQuit)
 
     def valider(self):
+        # Envoyer la commande au bras robot
+        self.send_command("set digital_out(0,True)" + "\n")
         print("Valider")
 
     def rebus(self):
+        # Envoyer la commande au bras robot
+        self.send_command("set digital_out(0,False)" + "\n")
         print("Rebus")
 
     def sourceSelected(self, text):
@@ -169,6 +198,8 @@ class ApplicationWindow(QMainWindow):
                 # Rebasculer sur l'image statique
                 self.comboBox.setCurrentIndex(0)
                 return
+            # Se connecter au bras robot
+            self.connect_to_robot()
             while True:
                 # Lire l'image depuis la caméra
                 ret, frame = self.cap.read()
