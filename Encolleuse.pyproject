@@ -1,5 +1,8 @@
 {
     "files": [
-        "main.py"
+        "application_window.py",
+        "camera_buffer_cleaner_thread.py",
+        "main.py",
+        "octoprint_client.py"
     ]
 }
