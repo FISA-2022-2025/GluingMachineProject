@@ -1,13 +1,14 @@
 import sys
 import numpy as np
 import cv2
-from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QCheckBox, QLineEdit, QPushButton, QComboBox
+from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QCheckBox, QLineEdit, QPushButton, QComboBox
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import glob
 import serial
 from octoprint_client import OctoPrintClient
 from camera_buffer_cleaner_thread import CameraBufferCleanerThread
+import time
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -17,10 +18,16 @@ class ApplicationWindow(QMainWindow):
         self.image = cv2.imread('images/capture0.jpg')
         # Charger un array d'image à partir du dossier Images
         self.images = [cv2.imread(file) for file in glob.glob('images/*.jpg')]
-        # Initialiser la caméra
-        self.cap = cv2.VideoCapture('http://10.167.50.3/webcam/?action=stream')
+        # Déclarer la caméra
+        self.cap = None
+        # Déclarer l'arduino
+        self.arduino = None
+
         # Initialiser l'arduino
-        self.arduino = serial.Serial('COM3', 9600)
+        try :
+            self.arduino = serial.Serial('COM3', 9600)
+        except:
+            print("Erreur lors de la connexion à l'arduino.")
         # Déclarer le thread de nettoyage du tampon de la caméra
         self.cam_cleaner = None
 
@@ -70,30 +77,37 @@ class ApplicationWindow(QMainWindow):
 
         centralWidget = QWidget(self)
         self.setCentralWidget(centralWidget)
-        layout = QVBoxLayout(centralWidget)
+        layout = QHBoxLayout(centralWidget)
+
+        # Panneau de contrôle à gauche
+        controlPanelLayout = QVBoxLayout()
+        layout.addLayout(controlPanelLayout, 1)
+
+        # Panneau d'affichage à droite
+        displayPanelLayout = QVBoxLayout()
+        layout.addLayout(displayPanelLayout, 3)
 
         self.canvas = FigureCanvas(Figure(figsize=(5, 4)))
-        layout.addWidget(self.canvas)
+        displayPanelLayout.addWidget(self.canvas)
 
         # Afficher un selecteur entre vidéo direct et image statique
         self.comboBox = QComboBox(self)
         self.comboBox.addItem("Image statique")
         self.comboBox.addItem("Vidéo direct")
         self.comboBox.currentTextChanged.connect(self.sourceSelected)
-        layout.addWidget(self.comboBox)
-
+        controlPanelLayout.addWidget(self.comboBox)
 
         # Afficher des flèches pour passer d'une image à l'autre
         self.current_image_index = 0
         self.pushButtonPrevious = QPushButton("Précédent", self)
         self.pushButtonPrevious.clicked.connect(self.previousImage)
-        layout.addWidget(self.pushButtonPrevious)
+        controlPanelLayout.addWidget(self.pushButtonPrevious)
         self.pushButtonNext = QPushButton("Suivant", self)
         self.pushButtonNext.clicked.connect(self.nextImage)
-        layout.addWidget(self.pushButtonNext)
+        controlPanelLayout.addWidget(self.pushButtonNext)
 
         # Créer deux axes horizontal dans le canevas : un pour l'image et un pour l'histogramme horizontal
-        self.ax1, self.ax2 = self.canvas.figure.subplots(1, 2, gridspec_kw={'width_ratios': [3, 1]})
+        self.ax1, self.ax2 = self.canvas.figure.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
 
         self.ax1.imshow(self.image, cmap='gray')  # Afficher l'image en niveaux de gris par défaut
         self.ax1.axis('on')  # Cacher les axes pour l'image
@@ -105,7 +119,7 @@ class ApplicationWindow(QMainWindow):
         # Ajouter une case à cocher pour le filtre passe-bande
         self.checkBoxBandPassFilter = QCheckBox("Appliquer Filtre Passe-Bande", self)
         self.checkBoxBandPassFilter.stateChanged.connect(self.updateImage)
-        layout.addWidget(self.checkBoxBandPassFilter)
+        controlPanelLayout.addWidget(self.checkBoxBandPassFilter)
 
         # Ajouter deux champs de texte pour les valeurs du filtre passe-bande
         # Valeur minimale
@@ -120,43 +134,59 @@ class ApplicationWindow(QMainWindow):
         self.lineEditMin.textChanged.connect(self.updateImage)
         self.lineEditMax.textChanged.connect(self.updateImage)
         # Ajouter les champs de texte à la mise en page
-        layout.addWidget(self.lineEditMin)
-        layout.addWidget(self.lineEditMax)
+        controlPanelLayout.addWidget(self.lineEditMin)
+        controlPanelLayout.addWidget(self.lineEditMax)
 
         # Ajouter une case à cocher pour le filtre laplacien
         self.checkBoxLaplaceFilter = QCheckBox("Appliquer filtre laplacien", self)
         self.checkBoxLaplaceFilter.stateChanged.connect(self.updateImage)
-        layout.addWidget(self.checkBoxLaplaceFilter)
+        controlPanelLayout.addWidget(self.checkBoxLaplaceFilter)
 
         # Ajouter une case à cocher pour la détection de contour
         self.checkBoxEdgeDetection = QCheckBox("Détection de contour", self)
         self.checkBoxEdgeDetection.stateChanged.connect(self.updateImage)
-        layout.addWidget(self.checkBoxEdgeDetection)
+        controlPanelLayout.addWidget(self.checkBoxEdgeDetection)
 
         # Permettre la selection de la zone de collage
         self.checkBoxCollage = QCheckBox("Selection de la zone de collage", self)
         self.checkBoxCollage.stateChanged.connect(self.updateImage)
-        layout.addWidget(self.checkBoxCollage)
+        controlPanelLayout.addWidget(self.checkBoxCollage)
 
         # Ajouter un bouton valider pour le bras robot
         self.pushButtonValider = QPushButton("Valider", self)
         self.pushButtonValider.clicked.connect(self.valider)
-        layout.addWidget(self.pushButtonValider)
+        controlPanelLayout.addWidget(self.pushButtonValider)
 
         # Ajout un bouton rebus pour le bras robot
         self.pushButtonRebus = QPushButton("Rebus", self)
         self.pushButtonRebus.clicked.connect(self.rebus)
-        layout.addWidget(self.pushButtonRebus)
+        controlPanelLayout.addWidget(self.pushButtonRebus)
 
         # Ajout un bouton de test pour l'octoprint
-        self.pushButtonTest = QPushButton("Test Octo Print", self)
-        self.pushButtonTest.clicked.connect(self.testOctoPrint)
-        layout.addWidget(self.pushButtonTest)
+        self.pushButtonInitPlateau = QPushButton("Initialiser le plateau", self)
+        self.pushButtonInitPlateau.clicked.connect(self.deplacerPlateau)
+        controlPanelLayout.addWidget(self.pushButtonInitPlateau)
+
+        # Ajout d'un bouton pour le lancement du gcode
+        self.pushButtonGcode = QPushButton("Lancer Gcode", self)
+        self.pushButtonGcode.clicked.connect(self.lancerGcode)
+        controlPanelLayout.addWidget(self.pushButtonGcode)
+
+        # Ajouter un bouton pour initialiser la position de l'octoprint
+        self.pushButtonInit = QPushButton("Initialiser", self)
+        self.pushButtonInit.clicked.connect(self.initOctoPrint)
+        controlPanelLayout.addWidget(self.pushButtonInit)
+
+        # Ajouter un bouton rouge d'arrêt d'urgence
+        self.pushButtonStop = QPushButton("Arrêt d'urgence", self)
+        self.pushButtonStop.clicked.connect(self.stopOperation)
+        self.pushButtonStop.setStyleSheet("background-color: red")
+        controlPanelLayout.addWidget(self.pushButtonStop)
 
         # Ajout d'un bouton quitter pour fermer l'application
         self.pushButtonQuit = QPushButton("Quitter", self)
         self.pushButtonQuit.clicked.connect(self.closeApp)
-        layout.addWidget(self.pushButtonQuit)
+        controlPanelLayout.addWidget(self.pushButtonQuit)
 
     def closeApp(self):
         """Fermer l'application."""
@@ -167,16 +197,42 @@ class ApplicationWindow(QMainWindow):
         self.arduino.close()
         self.close()
 
-    def testOctoPrint(self):
+    def initOctoPrint(self):
+        '''Initialiser l'imprimante 3D'''
         octo_client = OctoPrintClient('http://10.167.50.3/api/', 'B611302D163841BFB5F0225A90BF0B2F')
-        octo_client.send_gcode_command(['G1 X117.00 Y250 Z20 F2000'])  # Exemple: Demande l'état actuel de la température
+        octo_client.init_position()
+
+    def stopOperation(self):
+        '''Arrêter l'opération en cours'''
+        octo_client = OctoPrintClient('http://10.167.50.3/api/', 'B611302D163841BFB5F0225A90BF0B2F')
+        octo_client.cancel_print()
+        print("Arrêt d'urgence")
+
+    def lancerGcode(self):
+        '''Lancer le gcode sur l'imprimante 3D'''
+        octo_client = OctoPrintClient('http://10.167.50.3/api/', 'B611302D163841BFB5F0225A90BF0B2F')
+        #octo_client.start_print_job('/home/pi/.octoprint/uploads/global3.gcode')
+        octo_client.start_print_job('global3.gcode', 'local')
+
+    def deplacerPlateau(self):
+        '''Envoyer une commande Gcode à l'imprimante 3D'''
+        octo_client = OctoPrintClient('http://10.167.50.3/api/', 'B611302D163841BFB5F0225A90BF0B2F')
+        octo_client.send_gcode_command(['G1 X117.00 Y250 Z20 F2000'])
 
     def valider(self):
+        # Déplacer le plateau
+        self.deplacerPlateau()
+        # Attendre 1 demi seconde
+        time.sleep(0.5)
         # Envoyer la commande au bras robot
         self.arduino.write(b'1')
         print("Valider")
 
     def rebus(self):
+        # Déplacer le plateau
+        self.deplacerPlateau()
+        # Attendre 1 demi seconde
+        time.sleep(0.5)
         # Envoyer la commande au bras robot
         self.arduino.write(b'2')
         print("Rebus")
@@ -192,22 +248,24 @@ class ApplicationWindow(QMainWindow):
             print("Image statique")
         elif text == "Vidéo direct":
             # Vérifier si la caméra est ouverte
-            if not self.cap.isOpened():
-                print("Erreur lors de l'ouverture de la caméra.")
+            # Initialiser la caméra
+            try:
+                self.cap = cv2.VideoCapture('http://10.167.50.3/webcam/?action=stream')
+                # Créer un thread pour nettoyer le tampon de la caméra
+                cam_cleaner = CameraBufferCleanerThread(self.cap)
+                while True:
+                    if cam_cleaner.last_frame is not None:
+                        self.image = cam_cleaner.last_frame
+                        self.updateImage()
+
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+                # Arrêter le nettoyage du tampon de la caméra
+                cam_cleaner.stop()
+            except:
+                print("Erreur lors de la connexion à la caméra.")
                 # Rebasculer sur l'image statique
                 self.comboBox.setCurrentIndex(0)
-                return
-
-            cam_cleaner = CameraBufferCleanerThread(self.cap)
-            while True:
-                if cam_cleaner.last_frame is not None:
-                    self.image = cam_cleaner.last_frame
-                    self.updateImage()
-
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            # Arrêter le nettoyage du tampon de la caméra
-            cam_cleaner.stop()
 
     def updateImage(self):
         """Mettre à jour l'image et l'histogramme en fonction des cases à cocher."""
@@ -225,8 +283,12 @@ class ApplicationWindow(QMainWindow):
             image_filtree = cv2.cvtColor(image_filtree, cv2.COLOR_BGR2GRAY)
             image_filtree = cv2.Laplacian(image_filtree, cv2.CV_64F)
         # Appliquer la détection de contour
-        if self.checkBoxCollage.isChecked() or self.checkBoxEdgeDetection.isChecked():
-            x1, y1, x2, y2 = 100, 150, 300, 200  # Coordonnées de la zone de collage, TODO : interactif
+        if self.checkBoxCollage.isChecked() or self.checkBoxEdgeDetection.isChecked():            
+            # zone 1 : 230, 290, 260, 370
+            # zone 2 : 280, 380, 490, 405
+            # zone 3 : 500, 290, 520, 370
+            # zone 4 : 280, 245, 490, 280
+            x1, y1, x2, y2 = 280, 255, 490, 270  # Coordonnées de la zone de collage, TODO : interactif
             # Appliquer la détection de contour uniquement dans la zone sélectionnée
             if self.checkBoxEdgeDetection.isChecked():
                 # Créer un masque rouge
