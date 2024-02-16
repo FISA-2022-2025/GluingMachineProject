@@ -1,0 +1,68 @@
+ Programme
+   Programme de robot
+     Activer la main
+     Ouverture main (1)
+     Conveyor :1,Stop
+     DéplacementA
+       PointPassage_1
+       PointPassage_2
+       PointPassage_3
+       Déplacement main58% (1)
+       PointPassage_7
+       PointPassage_1
+       PointPassage_4
+       PointPassage_5
+       Ouverture main (1)
+       retour_securise
+     Attendre digital_in[4] ≟ True  or digital_in[5]≟ True 
+     Si digital_in[4]≟ True 
+       var_1≔ True 
+       Boucle var_1≟ True 
+         DéplacementA
+           Waypoint_1
+         DéplacementA
+           photo
+         Localisation caméra
+           Pour le ou les objets trouvés
+             DéplacementL
+               approche
+               recup
+               Déplacement main55% (1)
+               approche
+               post_prise
+               var_1≔ False 
+             DéplacementA
+               pro_placer
+               placer
+               Ouverture main (1)
+               post_placer
+               Boucle digital_in[1]≟ True  and digital_in[2]≟ False 
+                 Conveyor :1,Fwd,100
+               Boucle 100000 fois
+                 Conveyor :1,Fwd,100
+           Si aucun objet n’est détecté
+             'Optionnel'
+     SinonSi digital_in[5]≟ True 
+       var_1≔ True 
+       Boucle var_1≟ True 
+         DéplacementA
+           Waypoint_1
+         DéplacementA
+           photo
+         Localisation caméra
+           Pour le ou les objets trouvés
+             DéplacementL
+               approche
+               recup
+               Déplacement main55% (1)
+               approche
+               post_prise
+               var_1≔ False 
+             DéplacementA
+               pro_placer
+               Placer_rebus
+               Ouverture main (1)
+               PointPassage_6
+               retour_securise
+           Si aucun objet n’est détecté
+             'Optionnel'
