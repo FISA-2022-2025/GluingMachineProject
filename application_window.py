@@ -86,6 +86,8 @@ class ApplicationWindow(QMainWindow):
         self.comboBox.addItem("Image statique")
         self.comboBox.addItem("Vidéo direct")
         self.comboBox.currentTextChanged.connect(self.sourceSelected)
+        # Changer la couleur du texte
+        self.comboBox.setStyleSheet("color: #1de9b6")
         controlPanelLayout.addWidget(self.comboBox)
 
         # Afficher des flèches pour passer d'une image à l'autre
@@ -229,7 +231,7 @@ class ApplicationWindow(QMainWindow):
         '''Lancer le gcode sur l'imprimante 3D'''
         octo_client = OctoPrintClient('http://10.167.50.3/api/', 'B611302D163841BFB5F0225A90BF0B2F')
         #octo_client.start_print_job('/home/pi/.octoprint/uploads/global3.gcode')
-        octo_client.start_print_job('global3.gcode', 'local')
+        octo_client.start_print_job('global5.gcode', 'local')
 
     def deplacerPlateau(self):
         '''Envoyer une commande Gcode à l'imprimante 3D'''
@@ -303,10 +305,10 @@ class ApplicationWindow(QMainWindow):
         elif self.comboBox.currentText() == "Vidéo direct":
             zones = [
             #       x1   y1   x2   y2
-                   (230, 290, 260, 370),  # Zone gauche
-                   (280, 380, 490, 405),  # Zone droite
-                   (500, 290, 520, 370),  # Zone haut
-                   (280, 245, 490, 270)   # Zone bas
+                   (245, 290, 270, 370),  # Zone gauche
+                   (280, 380, 490, 405),  # Zone bas
+                   (500, 295, 550, 370),  # Zone droite
+                   (280, 255, 490, 280)   # Zone haut
                ]
 
        # Appliquer la détection de contour uniquement dans les zones sélectionnées
@@ -339,11 +341,19 @@ class ApplicationWindow(QMainWindow):
 
             print(distance_px)
 
-            # Mettre à jour l'affichage
-            self.ax3.text(0, 0.8, f"Contour gauche : {distance_px[0]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
-            self.ax3.text(0, 0.6, f"Contour droite : {distance_px[1]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
-            self.ax3.text(0, 0.4, f"Contour bas    : {distance_px[2]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
-            self.ax3.text(0, 0.2, f"Contour haut   : {distance_px[3]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
+            # Afficher la distance entre les contours une fois sur 100
+            self.counter = 0
+            if self.counter % 1000 == 0:
+                # effacer l'ancien texte
+                self.ax3.clear()
+                # remettre le background en blanc
+                self.ax3.set_facecolor('#31363b')
+
+                self.ax3.text(0, 0.8, f"Contour gauche : {distance_px[0]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
+                self.ax3.text(0, 0.6, f"Contour droite : {distance_px[1]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
+                self.ax3.text(0, 0.4, f"Contour bas    : {distance_px[2]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
+                self.ax3.text(0, 0.2, f"Contour haut   : {distance_px[3]*0.2:.2f} mm.", ha='left', va='center', fontsize=14, color='#1de9b6')
+            self.counter += 1
 
             # Mettre à jour l'affichage
             self.ax1.clear()
